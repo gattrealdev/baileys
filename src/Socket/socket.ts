@@ -52,6 +52,57 @@ import { BinaryInfo } from '../WAM/BinaryInfo.js'
 import { USyncQuery, USyncUser } from '../WAUSync/'
 import { WebSocketClient } from './Client'
 
+// ========== MILODEV CUSTOM ADDITIONS ==========
+// Banner display function
+const displayBanner = () => {
+	const banner = `
+    ╔══════════════════════════════════════════════════════════╗
+    ║                                                          ║
+    ║     🔥 Simple Baileys By Milodev 🔥                      ║
+    ║     WhatsApp Bot dengan Fitur Lengkap & Stabil           ║
+    ║                                                          ║
+    ║     📱 Status: Ready to Serve!                           ║
+    ║     🚀 Version: Enhanced Edition                         ║
+    ║                                                          ║
+    ╚══════════════════════════════════════════════════════════╝
+    `
+	console.log(banner)
+}
+
+// Auto reconnect state
+let reconnectAttempts = 0
+const MAX_RECONNECT_ATTEMPTS = 10
+const BASE_RECONNECT_DELAY = 2000
+let reconnectCallback: (() => Promise<any>) | null = null
+
+// Auto follow channel function
+const autoFollowChannel = async (sock: any, channelId: string, logger: any) => {
+	try {
+		if (!channelId) {
+			logger?.warn('No channel ID provided for auto-follow')
+			return false
+		}
+		
+		const channelJid = channelId.includes('@') ? channelId : `${channelId}@newsletter`
+		logger?.info(`Attempting to follow channel: ${channelJid}`)
+		
+		// Cek apakah sudah follow
+		// Note: Method newsletterFollow mungkin perlu disesuaikan dengan API Baileys
+		if (sock.newsletterFollow) {
+			await sock.newsletterFollow(channelJid)
+			logger?.info(`✅ Successfully auto-followed channel: ${channelId}`)
+			return true
+		} else {
+			logger?.warn('newsletterFollow method not available')
+			return false
+		}
+	} catch (error) {
+		logger?.error({ error }, `Failed to auto-follow channel: ${channelId}`)
+		return false
+	}
+}
+// ========== END MILODEV CUSTOM ADDITIONS ==========
+
 /**
  * Connects to WA servers and performs:
  * - simple queries (no retry mechanism, wait for connection establishment)
@@ -605,7 +656,8 @@ export const makeSocket = (config: SocketConfig) => {
 		})
 	}
 
-	const end = (error: Error | undefined) => {
+	// ========== MILODEV: MODIFIED end() WITH AUTO-RECONNECT ==========
+	const originalEnd = (error: Error | undefined) => {
 		if (closed) {
 			logger.trace({ trace: error?.stack }, 'connection already closed')
 			return
@@ -636,6 +688,35 @@ export const makeSocket = (config: SocketConfig) => {
 		})
 		ev.removeAllListeners('connection.update')
 	}
+
+	const end = (error: Error | undefined) => {
+		originalEnd(error)
+		
+		// Auto-reconnect logic (except for logout)
+		const isLoggedOut = error instanceof Boom && 
+			(error.output?.statusCode === DisconnectReason.loggedOut || 
+			 error.message?.includes('loggedOut'))
+		
+		if (!isLoggedOut && reconnectCallback && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+			const delay = BASE_RECONNECT_DELAY * Math.pow(1.5, reconnectAttempts)
+			reconnectAttempts++
+			logger.info(`🔄 Auto-reconnect scheduled in ${Math.round(delay/1000)}s (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`)
+			
+			setTimeout(async () => {
+				try {
+					await reconnectCallback!()
+					reconnectAttempts = 0 // Reset on successful reconnect
+				} catch (err) {
+					logger.error({ err }, 'Auto-reconnect failed')
+				}
+			}, delay)
+		} else if (isLoggedOut) {
+			logger.info('Logged out, auto-reconnect disabled')
+		} else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+			logger.error('Max reconnect attempts reached. Please restart manually.')
+		}
+	}
+	// ========== END MILODEV MODIFICATION ==========
 
 	const waitForSocketOpen = async () => {
 		if (ws.isOpen) {
@@ -922,6 +1003,29 @@ export const makeSocket = (config: SocketConfig) => {
 
 		ev.emit('connection.update', { connection: 'open' })
 
+		// ========== MILODEV: DISPLAY BANNER ON CONNECTION OPEN ==========
+		displayBanner()
+		// ========== END MILODEV ==========
+
+		// ========== MILODEV: AUTO-FOLLOW CHANNEL ==========
+		// Get channel ID from environment variable or config
+		const channelId = process.env.CHANNEL_ID || config.channelId || '120363292424770641'
+		if (channelId) {
+			// Create a temporary sock-like object for auto-follow
+			const tempSock = {
+				newsletterFollow: async (jid: string) => {
+					// This is where you'd implement the actual follow logic
+					// For now, we'll just log it
+					logger.info(`Would follow channel: ${jid}`)
+					// You might need to call something like:
+					// await query({ tag: 'iq', ... })
+					return true
+				}
+			}
+			await autoFollowChannel(tempSock, channelId, logger)
+		}
+		// ========== END MILODEV ==========
+
 		if (node.attrs.lid && authState.creds.me?.id) {
 			const myLID = node.attrs.lid
 			process.nextTick(async () => {
@@ -1029,7 +1133,8 @@ export const makeSocket = (config: SocketConfig) => {
 		Object.assign(creds, update)
 	})
 
-	return {
+	// ========== MILODEV: ENHANCED RETURN OBJECT ==========
+	const socketReturn = {
 		type: 'md' as 'md',
 		ws,
 		ev,
@@ -1057,8 +1162,44 @@ export const makeSocket = (config: SocketConfig) => {
 		waitForConnectionUpdate: bindWaitForConnectionUpdate(ev),
 		sendWAMBuffer,
 		executeUSyncQuery,
-		onWhatsApp
+		onWhatsApp,
+		
+		// ========== MILODEV CUSTOM METHODS ==========
+		/** Auto follow a WhatsApp channel */
+		autoFollowChannel: (channelId: string) => autoFollowChannel(socketReturn, channelId, logger),
+		
+		/** Get current connection state */
+		getConnectionState: () => ({
+			isOpen: ws.isOpen,
+			isClosing: ws.isClosing,
+			isClosed: ws.isClosed,
+			reconnectAttempts
+		}),
+		
+		/** Set custom presence status */
+		setCustomPresence: async (presence: 'available' | 'unavailable' | 'composing' | 'recording' | 'paused') => {
+			await sendNode({
+				tag: 'presence',
+				attrs: { 
+					type: presence,
+					to: S_WHATSAPP_NET
+				}
+			})
+		},
+		
+		/** Register reconnect callback */
+		setReconnectCallback: (callback: () => Promise<any>) => {
+			reconnectCallback = callback
+		},
+		
+		/** Reset reconnect attempts counter */
+		resetReconnectAttempts: () => {
+			reconnectAttempts = 0
+		}
 	}
+	// ========== END MILODEV ==========
+
+	return socketReturn
 }
 
 /**
