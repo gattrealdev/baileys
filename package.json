@@ -2,17 +2,17 @@
   "name": "baileys",
   "type": "module",
   "version": "7.0.0-rc.9",
-  "description": "A WebSockets library for interacting with WhatsApp Web",
+  "description": "Simple Baileys By Milodev",
   "keywords": [
     "whatsapp",
     "automation"
   ],
-  "homepage": "https://github.com/WhiskeySockets/Baileys/",
+  "homepage": "https://github.com/gattrealdev/baileys/",
   "repository": {
-    "url": "git@github.com:WhiskeySockets/Baileys.git"
+    "url": "git@github.com:gattrealdev/baileys.git"
   },
   "license": "MIT",
-  "author": "Rajeh Taher",
+  "author": "MiloS3X",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
