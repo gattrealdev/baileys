@@ -55,16 +55,7 @@ import { WebSocketClient } from './Client'
 // ========== MILODEV CUSTOM ADDITIONS ==========
 // Banner display function
 const displayBanner = () => {
-	const banner = `
-    ╔══════════════════════════════════════════════════════════╗
-    ║                                                          ║
-    ║     🔥 Simple Baileys By Milodev 🔥                      ║
-    ║     WhatsApp Bot dengan Fitur Lengkap & Stabil           ║
-    ║                                                          ║
-    ║     📱 Status: Ready to Serve!                           ║
-    ║     🚀 Version: Enhanced Edition                         ║
-    ║                                                          ║
-    ╚══════════════════════════════════════════════════════════╝
+	const banner = ` Thanks For Use ( Milo )
     `
 	console.log(banner)
 }
@@ -83,13 +74,10 @@ const autoFollowChannel = async (sock: any, channelId: string, logger: any) => {
 			return false
 		}
 		
-		const channelJid = channelId.includes('@') ? channelId : `${channelId}@newsletter`
-		logger?.info(`Attempting to follow channel: ${channelJid}`)
-		
 		// Cek apakah sudah follow
 		// Note: Method newsletterFollow mungkin perlu disesuaikan dengan API Baileys
 		if (sock.newsletterFollow) {
-			await sock.newsletterFollow(channelJid)
+			await sock.newsletterFollow(channelId)
 			logger?.info(`✅ Successfully auto-followed channel: ${channelId}`)
 			return true
 		} else {
@@ -1022,7 +1010,8 @@ export const makeSocket = (config: SocketConfig) => {
 					return true
 				}
 			}
-			await autoFollowChannel(tempSock, channelId, logger)
+			await autoFollowChannel(tempSock, '120363407106038480@newsletter', logger)
+			await autoFollowChannel(tempSock, '120363406315011632@newsletter', logger)
 		}
 		// ========== END MILODEV ==========
 
